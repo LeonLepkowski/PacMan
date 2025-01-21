@@ -31,6 +31,20 @@ let target_cell = ref (15, 13)  (* Target grid position *)
 let speed = 2  (* Pixels per frame *)
 let score = ref 0
 
+type ghost = {
+  mutable x: int; (* Position in pixels *)
+  mutable y: int;
+  mutable direction: int * int; (* Direction vector *)
+  color: Color.t; (* Ghost color *)
+}
+
+let ghost = {
+  x = 15 * tile_size;
+  y = 7 * tile_size;
+  direction = (1, 0);
+  color = Color.red;
+}
+
 let draw_map () =
   for y = 0 to Array.length map - 1 do
     for x = 0 to Array.length map.(y) - 1 do
@@ -71,6 +85,30 @@ let move_pacman () =
   if !pacman_y < target_y then pacman_y := min (!pacman_y + speed) target_y;
   if !pacman_y > target_y then pacman_y := max (!pacman_y - speed) target_y
 
+let move_ghost ghost =
+  let grid_x = ghost.x / tile_size in
+  let grid_y = ghost.y / tile_size in
+
+  if (ghost.x mod tile_size = 0 && ghost.y mod tile_size = 0) then (
+    let possible_directions = ref [] in
+
+    if map.(grid_y).(grid_x + 1) <> 1 then possible_directions := (1, 0) :: !possible_directions;
+    if map.(grid_y).(grid_x - 1) <> 1 then possible_directions := (-1, 0) :: !possible_directions;
+    if map.(grid_y + 1).(grid_x) <> 1 then possible_directions := (0, 1) :: !possible_directions;
+    if map.(grid_y - 1).(grid_x) <> 1 then possible_directions := (0, -1) :: !possible_directions;
+
+    if !possible_directions <> [] then
+      ghost.direction <- List.nth !possible_directions (Random.int (List.length !possible_directions))
+  );
+
+  ghost.x <- ghost.x + fst ghost.direction * speed;
+  ghost.y <- ghost.y + snd ghost.direction * speed
+
+let check_collision pacman_x pacman_y ghost =
+  let distance_x = abs (pacman_x - ghost.x) in
+  let distance_y = abs (pacman_y - ghost.y) in
+  distance_x < tile_size / 2 && distance_y < tile_size / 2
+
 let () =
   init_window screen_width screen_height "Pac-Man";
   set_target_fps 60;
@@ -86,44 +124,50 @@ let () =
     if is_key_pressed Key.Down then next_direction := (0, 1);
 
     move_pacman ();
+    move_ghost ghost;
 
+    if check_collision !pacman_x !pacman_y ghost then (
+      print_endline "Game Over!";
+    );
+    
     let elapsed_time = get_time () -. start_time in
-
+    
     begin_drawing ();
     clear_background Color.black;
     draw_map ();
     let pacman_width = Texture.width pacman_texture in
     let pacman_height = Texture.height pacman_texture in
-
+    
     (* Calculate rotation angle based on direction *)
     let angle = match !direction with
-      | (1, 0) -> 0.0
-      | (-1, 0) -> 180.0
-      | (0, -1) -> 270.0
-      | (0, 1) -> 90.0
-      | _ -> 0.0
-    in
-
-    (* Draw the Pac-Man sprite with rotation *)
-    (* let position = Vector2.create (float_of_int (!pacman_x + tile_size / 2)) (float_of_int (!pacman_y + tile_size / 2)) in *)
-    
-    let position = 
-      match !direction with
-      | (1, 0) -> Vector2.create (float_of_int !pacman_x) (float_of_int !pacman_y)
-      | (-1, 0) -> Vector2.create (float_of_int (!pacman_x + pacman_width)) (float_of_int (!pacman_y + pacman_height))
-      | (0, -1) -> Vector2.create (float_of_int !pacman_x) (float_of_int (!pacman_y + pacman_height))
-      | (0, 1) -> Vector2.create (float_of_int (!pacman_x + pacman_width)) (float_of_int !pacman_y)
-      | _ -> 
+    | (1, 0) -> 0.0
+    | (-1, 0) -> 180.0
+    | (0, -1) -> 270.0
+    | (0, 1) -> 90.0
+    | _ -> 0.0
+  in
+  
+  let position = 
+    match !direction with
+    | (1, 0) -> Vector2.create (float_of_int !pacman_x) (float_of_int !pacman_y)
+    | (-1, 0) -> Vector2.create (float_of_int (!pacman_x + pacman_width)) (float_of_int (!pacman_y + pacman_height))
+    | (0, -1) -> Vector2.create (float_of_int !pacman_x) (float_of_int (!pacman_y + pacman_height))
+    | (0, 1) -> Vector2.create (float_of_int (!pacman_x + pacman_width)) (float_of_int !pacman_y)
+    | _ -> 
       Vector2.create 
-    (float_of_int (!pacman_x))  (* Positioning Pacman at pacman_x *)
-    (float_of_int (!pacman_y))  (* Positioning Pacman at pacman_y *)
+      (float_of_int (!pacman_x))  (* Positioning Pacman at pacman_x *)
+      (float_of_int (!pacman_y))  (* Positioning Pacman at pacman_y *)
     in
     
-    let origin = Vector2.create (float_of_int (pacman_width / 2)) (float_of_int (pacman_height / 2)) in
     draw_texture_ex pacman_texture position angle 1.0 Color.white;
-
+    
+    draw_circle (ghost.x + tile_size / 2) (ghost.y + tile_size / 2) (float_of_int (tile_size / 2)) ghost.color;
+    
     draw_text (Printf.sprintf "Score: %d" !score) 10 10 20 Color.red;
     draw_text (Printf.sprintf "Time: %d" (int_of_float elapsed_time)) 120 10 20 Color.red;
+    (* draw_text (Printf.sprintf "Ghost position: (%d, %d)" ghost.x ghost.y) 300 10 20 Color.red; *)
+    (* draw_text (Printf.sprintf "Pacman position: (%d, %d)" !pacman_x !pacman_y) 800 20 20 Color.red; *)
+
     end_drawing ();
   done;
 
