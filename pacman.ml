@@ -87,23 +87,41 @@ let move_ghost ghost =
   if (ghost.x mod tile_size = 0 && ghost.y mod tile_size = 0) then (
     let possible_directions = ref [] in
 
-    if map.(grid_y).(grid_x + 1) <> 1 then possible_directions := (1, 0) :: !possible_directions;
-    if map.(grid_y).(grid_x - 1) <> 1 then possible_directions := (-1, 0) :: !possible_directions;
-    if map.(grid_y + 1).(grid_x) <> 1 then possible_directions := (0, 1) :: !possible_directions;
-    if map.(grid_y - 1).(grid_x) <> 1 then possible_directions := (0, -1) :: !possible_directions;
+    (* Reverse direction of the current direction *)
+    let reverse_direction = (-fst ghost.direction, -snd ghost.direction) in
 
+    (* Add directions to the list, excluding the reverse direction *)
+    if map.(grid_y).(grid_x + 1) <> 1 && (1, 0) <> reverse_direction then
+      possible_directions := (1, 0) :: !possible_directions;
+    if map.(grid_y).(grid_x - 1) <> 1 && (-1, 0) <> reverse_direction then
+      possible_directions := (-1, 0) :: !possible_directions;
+    if map.(grid_y + 1).(grid_x) <> 1 && (0, 1) <> reverse_direction then
+      possible_directions := (0, 1) :: !possible_directions;
+    if map.(grid_y - 1).(grid_x) <> 1 && (0, -1) <> reverse_direction then
+      possible_directions := (0, -1) :: !possible_directions;
+
+    (* Choose a new direction if there are possible directions, otherwise reverse direction *)
     if !possible_directions <> [] then
       ghost.direction <- List.nth !possible_directions (Random.int (List.length !possible_directions))
+    else
+      ghost.direction <- reverse_direction
   );
 
+  (* Update the ghost's position based on its direction *)
   ghost.x <- ghost.x + fst ghost.direction * speed;
   ghost.y <- ghost.y + snd ghost.direction * speed
-
+      
 let check_collisions pacman_x pacman_y ghosts =
   Array.exists (fun ghost ->
     let distance_x = abs (pacman_x - ghost.x) in
     let distance_y = abs (pacman_y - ghost.y) in
     distance_x < tile_size / 2 && distance_y < tile_size / 2
+  ) ghosts
+
+let draw_ghosts ghosts =
+  Array.iter (fun ghost ->
+    (* Printf.printf "Drawing ghost at position: (%d, %d)\n%!" ghost.x ghost.y; *)
+    draw_texture ghost.texture ghost.x ghost.y Color.white
   ) ghosts
 
 (* let draw_ghosts ghosts =
@@ -187,10 +205,7 @@ let () =
     
     draw_texture_ex pacman_texture position angle 1.0 Color.white;
     
-    Array.iter (fun ghost ->
-      (* Printf.printf "Drawing ghost at position: (%d, %d)\n%!" ghost.x ghost.y; *)
-      draw_texture ghost.texture ghost.x ghost.y Color.white
-    ) ghosts;
+    draw_ghosts ghosts;
     
     if !game_end then draw_text "GAME OVER" 200 200 150 Color.yellow else ();
     
