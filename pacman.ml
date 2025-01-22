@@ -27,23 +27,18 @@ let pacman_y = ref (13 * tile_size)  (* Position in pixels *)
 let direction = ref (0, 0)  (* Initial direction *)
 let next_direction = ref (0, 0)  (* Initial next direction *)
 let target_cell = ref (15, 13)  (* Target grid position *)
-
+let game_end = ref false
 let speed = 2  (* Pixels per frame *)
 let score = ref 0
 
 type ghost = {
-  mutable x: int; (* Position in pixels *)
+  mutable x: int;        (* Position in pixels *)
   mutable y: int;
   mutable direction: int * int; (* Direction vector *)
-  color: Color.t; (* Ghost color *)
+  color: Color.t;        (* Ghost color, can be ignored if using textures *)
+  texture: Texture.t;    (* Ghost image texture *)
 }
 
-let ghost = {
-  x = 15 * tile_size;
-  y = 7 * tile_size;
-  direction = (1, 0);
-  color = Color.red;
-}
 
 let draw_map () =
   for y = 0 to Array.length map - 1 do
@@ -104,16 +99,46 @@ let move_ghost ghost =
   ghost.x <- ghost.x + fst ghost.direction * speed;
   ghost.y <- ghost.y + snd ghost.direction * speed
 
-let check_collision pacman_x pacman_y ghost =
-  let distance_x = abs (pacman_x - ghost.x) in
-  let distance_y = abs (pacman_y - ghost.y) in
-  distance_x < tile_size / 2 && distance_y < tile_size / 2
+let check_collisions pacman_x pacman_y ghosts =
+  Array.exists (fun ghost ->
+    let distance_x = abs (pacman_x - ghost.x) in
+    let distance_y = abs (pacman_y - ghost.y) in
+    distance_x < tile_size / 2 && distance_y < tile_size / 2
+  ) ghosts
+
+(* let draw_ghosts ghosts =
+  Array.iter (fun ghost ->
+    Printf.printf "Drawing ghost at position: (%d, %d)\n%!" ghost.x ghost.y;
+    if Raylib.is_texture_ready ghost.texture then
+      draw_texture ghost.texture ghost.x ghost.y Color.white
+    else
+      Printf.printf "Texture not ready for ghost at position: (%d, %d)\n%!" ghost.x ghost.y
+  ) ghosts *)
 
 let () =
   init_window screen_width screen_height "Pac-Man";
   set_target_fps 60;
 
   let pacman_texture = load_texture "pacman.png" in  (* Load the Pac-Man sprite *)
+  Printf.printf "Pacman texture loaded: %b\n%!" (Raylib.is_texture_ready pacman_texture);
+  
+  let ghost_textures = [|
+    load_texture "ghost_red.png";
+    load_texture "ghost_blue.png";
+    load_texture "ghost_pink.png";
+    load_texture "ghost_orange.png";
+  |] in
+
+  Array.iteri (fun i texture ->
+    Printf.printf "Ghost texture %d loaded: %b\n%!" i (is_texture_ready texture)
+  ) ghost_textures;
+
+  let ghosts = [|
+    { x = 13 * tile_size; y = 7 * tile_size; direction = (1, 0); color = Color.red; texture = ghost_textures.(0) };
+    { x = 14 * tile_size; y = 7 * tile_size; direction = (-1, 0); color = Color.blue; texture = ghost_textures.(1) };
+    { x = 15 * tile_size; y = 7 * tile_size; direction = (0, -1); color = Color.green; texture = ghost_textures.(2) };
+    { x = 16 * tile_size; y = 7 * tile_size; direction = (0, 1); color = Color.orange; texture = ghost_textures.(3) };
+  |] in
 
   let start_time = get_time () in
 
@@ -124,12 +149,13 @@ let () =
     if is_key_pressed Key.Down then next_direction := (0, 1);
 
     move_pacman ();
-    move_ghost ghost;
+    Array.iter move_ghost ghosts;
 
-    if check_collision !pacman_x !pacman_y ghost then (
+    if check_collisions !pacman_x !pacman_y ghosts then (
       print_endline "Game Over!";
+      game_end := true;
     );
-    
+
     let elapsed_time = get_time () -. start_time in
     
     begin_drawing ();
@@ -161,8 +187,16 @@ let () =
     
     draw_texture_ex pacman_texture position angle 1.0 Color.white;
     
-    draw_circle (ghost.x + tile_size / 2) (ghost.y + tile_size / 2) (float_of_int (tile_size / 2)) ghost.color;
+    Array.iter (fun ghost ->
+      (* Printf.printf "Drawing ghost at position: (%d, %d)\n%!" ghost.x ghost.y; *)
+      draw_texture ghost.texture ghost.x ghost.y Color.white
+    ) ghosts;
     
+    if !game_end then draw_text "GAME OVER" 200 200 150 Color.yellow else ();
+    
+    (* draw_circle (ghost.x + tile_size / 2) (ghost.y + tile_size / 2) (float_of_int (tile_size / 2)) ghost.color; *)
+
+    draw_text "Pac-Man" (screen_width / 2 - 85) 3 40 Color.yellow;  (* Example of large text *)
     draw_text (Printf.sprintf "Score: %d" !score) 10 10 20 Color.red;
     draw_text (Printf.sprintf "Time: %d" (int_of_float elapsed_time)) 120 10 20 Color.red;
     (* draw_text (Printf.sprintf "Ghost position: (%d, %d)" ghost.x ghost.y) 300 10 20 Color.red; *)
@@ -171,5 +205,6 @@ let () =
     end_drawing ();
   done;
 
+  Array.iter unload_texture ghost_textures;  (* Unload the ghost textures *)
   unload_texture pacman_texture;  (* Unload the Pac-Man sprite *)
   close_window ();
