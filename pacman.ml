@@ -132,7 +132,7 @@ let move_pacman () =
   if !pacman_y > target_y then pacman_y := max (!pacman_y - speed) target_y;
 
   (* Teleport when going out of bounds *)
-  if !pacman_x < 1 then pacman_x := (Array.length map.(0) - 2) * tile_size (* Wrap to the right side *)
+  if !pacman_x < 1 then pacman_x := (Array.length map.(0) - 1) * tile_size (* Wrap to the right side *)
   else if !pacman_x >= (Array.length map.(0) - 1) * tile_size then pacman_x := 2 (* Wrap to the left side *)
   
 let move_ghost ghost =
@@ -245,12 +245,19 @@ let () =
   init_window screen_width screen_height "Pac-Man";
   set_target_fps 60;
 
-  let pacman_texture = load_texture "pacman.png" in  (* Load the Pac-Man sprite *)
-  Printf.printf "Pacman texture loaded: %b\n%!" (Raylib.is_texture_ready pacman_texture);
+  (* let pacman_texture = load_texture "pacman.png" in  (* Load the Pac-Man sprite *)
+  Printf.printf "Pacman texture loaded: %b\n%!" (Raylib.is_texture_ready pacman_texture); *)
 
   let background_texture = load_texture "background.png" in  (* Load the background image *)
   Printf.printf "Background texture loaded: %b\n%!" (Raylib.is_texture_ready background_texture);
 
+  let pacman_textures = [|
+    load_texture "pac_man_0.png";
+    load_texture "pac_man_1.png";
+    load_texture "pac_man_2.png";
+    load_texture "pac_man_3.png";
+    (* load_texture "pac_man_4.png"; *)
+  |] in
   
   let ghost_textures = [|
     load_texture "ghost_red.png";
@@ -264,11 +271,16 @@ let () =
   ) ghost_textures;
 
   let ghosts = [|
-    { x = 12 * tile_size; y = 15 * tile_size; direction = (0, 1); color = Color.orange; texture = ghost_textures.(3) };
-    { x = 13 * tile_size; y = 15 * tile_size; direction = (1, 0); color = Color.red; texture = ghost_textures.(0) };
-    { x = 14 * tile_size; y = 15 * tile_size; direction = (-1, 0); color = Color.blue; texture = ghost_textures.(1) };
-    { x = 15 * tile_size; y = 15 * tile_size; direction = (0, -1); color = Color.green; texture = ghost_textures.(2) };
+    { x = 9 * tile_size; y = 12 * tile_size; direction = (0, 1); color = Color.orange; texture = ghost_textures.(3) };
+    { x = 9 * tile_size; y = 18 * tile_size; direction = (1, 0); color = Color.red; texture = ghost_textures.(0) };
+    { x = 18 * tile_size; y = 12 * tile_size; direction = (-1, 0); color = Color.blue; texture = ghost_textures.(1) };
+    { x = 18 * tile_size; y = 18 * tile_size; direction = (0, -1); color = Color.green; texture = ghost_textures.(2) };
   |] in
+
+  let current_frame = ref 0 in
+  let frame_time = ref 0.0 in
+  let frame_duration = 0.1 in (* Duration of each frame in seconds *)
+  let last_update_time = ref (get_time ()) in
 
   let start_time = get_time () in
 
@@ -281,7 +293,7 @@ let () =
     move_pacman ();
     (* Array.iter move_ghost ghosts; *)
     (* Array.iter (fun ghost -> chase_pacman ghost { x = !pacman_x; y = !pacman_y; direction = !direction; color = Color.white; texture = pacman_texture }) ghosts; *)
-    Array.iter (fun ghost -> ghost_behavior ghost { x = !pacman_x; y = !pacman_y; direction = !direction; color = Color.white; texture = pacman_texture } (
+    Array.iter (fun ghost -> ghost_behavior ghost { x = !pacman_x; y = !pacman_y; direction = !direction; color = Color.white; texture = pacman_textures.(0) } (
       int_of_float (get_time () -. start_time)
     )) ghosts;
 
@@ -290,7 +302,15 @@ let () =
       game_end := true;
     );
 
-    let elapsed_time = get_time () -. start_time in
+    let current_time = get_time () in
+    let elapsed_time = current_time -. !last_update_time in
+    last_update_time := current_time;
+
+    frame_time := !frame_time +. elapsed_time;
+    if !frame_time >= frame_duration then (
+      frame_time := !frame_time -. frame_duration;
+      current_frame := (!current_frame + 1) mod Array.length pacman_textures;
+    );
     
     begin_drawing ();
     clear_background Color.black;
@@ -302,8 +322,8 @@ let () =
     draw_texture_ex background_texture (Vector2.create 0.0 0.0) 0.0 scale_x Color.white;
     draw_sweets ();
     
-    let pacman_width = Texture.width pacman_texture in
-    let pacman_height = Texture.height pacman_texture in
+    let pacman_width = Texture.width pacman_textures.(0) in
+    let pacman_height = Texture.height pacman_textures.(0) in
     
     (* Calculate rotation angle based on direction *)
     let angle = match !direction with
@@ -325,12 +345,15 @@ let () =
       (float_of_int (!pacman_x))  (* Positioning Pacman at pacman_x *)
       (float_of_int (!pacman_y))  (* Positioning Pacman at pacman_y *)
     in
+
+    let pacman_texture = pacman_textures.(!current_frame) in
     
     draw_texture_ex pacman_texture position angle 1.0 Color.white;
     
     draw_ghosts ghosts;
     
-    if !game_end then draw_text "GAME OVER" 200 200 150 Color.yellow else ();
+    if !game_end then draw_text "GAME" 200 325 150 Color.yellow else ();
+    if !game_end then draw_text "OVER" 200 475 150 Color.yellow else ();
     
     draw_text "Pac-Man" (screen_width / 2 - 85) 3 40 Color.yellow;  (* Example of large text *)
     draw_text (Printf.sprintf "Score: %d" !score) 10 5 20 Color.red;
@@ -343,5 +366,5 @@ let () =
 
   Array.iter unload_texture ghost_textures;  (* Unload the ghost textures *)
   unload_texture background_texture;
-  unload_texture pacman_texture;  (* Unload the Pac-Man sprite *)
+  Array.iter unload_texture pacman_textures;  (* Unload the Pac-Man sprites *)
   close_window ();
