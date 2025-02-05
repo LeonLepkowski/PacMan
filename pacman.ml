@@ -58,10 +58,6 @@ let map = [|
   (* [|0;0;0;0;0;0;0;0;0;0;0;0;0;0;0;0;0;0;0;0;0;0;0;0;0;0;0;0|]; *)
 |]
 
-
-
-
-
 let screen_width = Array.length map.(0) * tile_size
 let screen_height = Array.length map * tile_size
 
@@ -218,6 +214,55 @@ let chase_pacman ghost pacman =
   if ghost.x < 1 then ghost.x <- (Array.length map.(0) - 2) * tile_size  (* Wrap to the right side *)
   else if ghost.x >= (Array.length map.(0) - 1) * tile_size then ghost.x <- 2  (* Wrap to the left side *)  
 
+let run_away_from_pacman ghost pacman =
+  let grid_x = ghost.x / tile_size in
+  let grid_y = ghost.y / tile_size in
+  let pacman_x = pacman.x / tile_size in
+  let pacman_y = pacman.y / tile_size in
+
+  if (ghost.x mod tile_size = 0 && ghost.y mod tile_size = 0) then (
+    let possible_directions = ref [] in
+
+    (* Reverse direction of the current direction *)
+    let reverse_direction = (-fst ghost.direction, -snd ghost.direction) in
+
+    (* Add directions to the list, excluding the reverse direction *)
+    if map.(grid_y).(grid_x + 1) <> 1 && (1, 0) <> reverse_direction then
+      possible_directions := (1, 0) :: !possible_directions;
+    if map.(grid_y).(grid_x - 1) <> 1 && (-1, 0) <> reverse_direction then
+      possible_directions := (-1, 0) :: !possible_directions;
+    if map.(grid_y + 1).(grid_x) <> 1 && (0, 1) <> reverse_direction then
+      possible_directions := (0, 1) :: !possible_directions;
+    if map.(grid_y - 1).(grid_x) <> 1 && (0, -1) <> reverse_direction then
+      possible_directions := (0, -1) :: !possible_directions;
+
+    (* Choose the direction that maximizes distance to Pac-Man *)
+    if !possible_directions <> [] then
+      let best_direction = 
+        List.fold_left (fun best dir ->
+          let next_x = grid_x + fst dir in
+          let next_y = grid_y + snd dir in
+          let distance = abs (next_x - pacman_x) + abs (next_y - pacman_y) in
+          match best with
+          | None -> Some (dir, distance)
+          | Some (_, best_distance) -> 
+            if distance > best_distance then Some (dir, distance) else best
+        ) None !possible_directions
+      in
+      ghost.direction <- fst (Option.get best_direction)
+    else
+      ghost.direction <- reverse_direction
+  );
+
+  (* Update the ghost's position based on its direction *)
+  ghost.x <- ghost.x + fst ghost.direction * speed;
+  ghost.y <- ghost.y + snd ghost.direction * speed;
+
+  (* Teleport when going out of bounds *)
+  if ghost.x < 1 then ghost.x <- (Array.length map.(0) - 2) * tile_size  (* Wrap to the right side *)
+  else if ghost.x >= (Array.length map.(0) - 1) * tile_size then ghost.x <- 2  (* Wrap to the left side *)
+    
+
 let ghost_behavior ghost pacman time =
   (* Switch between normal movement and chasing Pac-Man every 7 seconds *)
   let cycle = (time / 7) mod 2 in
@@ -296,6 +341,8 @@ let () =
     Array.iter (fun ghost -> ghost_behavior ghost { x = !pacman_x; y = !pacman_y; direction = !direction; color = Color.white; texture = pacman_textures.(0) } (
       int_of_float (get_time () -. start_time)
     )) ghosts;
+
+    (* Array.iter (fun ghost -> run_away_from_pacman ghost { x = !pacman_x; y = !pacman_y; direction = !direction; color = Color.white; texture = pacman_textures.(0) }) ghosts; *)
 
     if check_collisions !pacman_x !pacman_y ghosts then (
       print_endline "Game Over!";
