@@ -6,13 +6,13 @@ let map = [|
   [|0;0;0;0;0;0;0;0;0;0;0;0;0;0;0;0;0;0;0;0;0;0;0;0;0;0;0;0|];
   [|1;1;1;1;1;1;1;1;1;1;1;1;1;1;1;1;1;1;1;1;1;1;1;1;1;1;1;1|];
   [|1;2;2;2;2;2;2;2;2;2;2;2;2;1;1;2;2;2;2;2;2;2;2;2;2;2;2;1|];
-  [|1;2;1;1;1;1;2;1;1;1;1;1;2;1;1;2;1;1;1;1;1;2;1;1;1;1;2;1|];
+  [|1;2;1;1;1;1;2;1;1;1;1;1;2;1;1;2;1;1;1;1;1;3;1;1;1;1;2;1|];
   [|1;2;1;0;0;1;2;1;0;0;0;1;2;1;1;2;1;0;0;0;1;2;1;0;0;1;2;1|];
   [|1;2;1;1;1;1;2;1;1;1;1;1;2;1;1;2;1;1;1;1;1;2;1;1;1;1;2;1|];
   [|1;2;2;2;2;2;2;2;2;2;2;2;2;2;2;2;2;2;2;2;2;2;2;2;2;2;2;1|];
   [|1;2;1;1;1;1;2;1;1;2;1;1;1;1;1;1;1;1;2;1;1;2;1;1;1;1;2;1|];
   [|1;2;1;1;1;1;2;1;1;2;1;1;1;1;1;1;1;1;2;1;1;2;1;1;1;1;2;1|];
-  [|1;2;2;2;2;2;2;1;1;2;2;2;2;1;1;2;2;2;2;1;1;2;2;2;2;2;2;1|];
+  [|1;2;2;3;2;2;2;1;1;2;2;2;2;1;1;2;2;2;2;1;1;2;2;2;2;2;2;1|];
   [|1;1;1;1;1;1;2;1;1;1;1;1;2;1;1;2;1;1;1;1;1;2;1;1;1;1;1;1|];
   [|0;0;0;0;0;1;2;1;1;1;1;1;2;1;1;2;1;1;1;1;1;2;1;0;0;0;0;0|];
   [|0;0;0;0;0;1;2;1;1;2;2;2;2;2;2;2;2;2;2;1;1;2;1;0;0;0;0;0|];
@@ -27,13 +27,13 @@ let map = [|
   [|1;2;2;2;2;2;2;2;2;2;2;2;2;1;1;2;2;2;2;2;2;2;2;2;2;2;2;1|];
   [|1;2;1;1;1;1;2;1;1;1;1;1;2;1;1;2;1;1;1;1;1;2;1;1;1;1;2;1|];
   [|1;2;1;1;1;1;2;1;1;1;1;1;2;1;1;2;1;1;1;1;1;2;1;1;1;1;2;1|];
-  [|1;2;2;2;1;1;2;2;2;2;2;2;2;0;0;2;2;2;2;2;2;2;1;1;2;2;2;1|];
+  [|1;2;2;2;1;1;2;2;2;2;2;2;2;0;0;2;2;2;2;2;2;2;1;1;3;2;2;1|];
   [|1;1;1;2;1;1;2;1;1;2;1;1;1;1;1;1;1;1;2;1;1;2;1;1;2;1;1;1|];
   [|1;1;1;2;1;1;2;1;1;2;1;1;1;1;1;1;1;1;2;1;1;2;1;1;2;1;1;1|];
   [|1;2;2;2;2;2;2;1;1;2;2;2;2;1;1;2;2;2;2;1;1;2;2;2;2;2;2;1|];
   [|1;2;1;1;1;1;1;1;1;1;1;1;2;1;1;2;1;1;1;1;1;1;1;1;1;1;2;1|];
   [|1;2;1;1;1;1;1;1;1;1;1;1;2;1;1;2;1;1;1;1;1;1;1;1;1;1;2;1|];
-  [|1;2;2;2;2;2;2;2;2;2;2;2;2;2;2;2;2;2;2;2;2;2;2;2;2;2;2;1|];
+  [|1;3;2;2;2;2;2;2;2;2;2;2;2;2;2;2;2;2;2;2;2;2;2;2;2;2;2;1|];
   [|1;1;1;1;1;1;1;1;1;1;1;1;1;1;1;1;1;1;1;1;1;1;1;1;1;1;1;1|];
   [|0;0;0;0;0;0;0;0;0;0;0;0;0;0;0;0;0;0;0;0;0;0;0;0;0;0;0;0|];
 |]
@@ -42,6 +42,8 @@ let screen_width = Array.length map.(0) * tile_size
 let screen_height = Array.length map * tile_size
 
 let speed = 2
+
+let time = 5.0
 
 type ghost = {
   x: int;
@@ -60,6 +62,9 @@ type game_state = {
   game_end: bool;
   score: int;
   ghosts: ghost array;
+  boost_active: bool;  (* Whether the boost is active *)
+  boost_time_left: float;  (* Time left for the boost in seconds *)
+  ghost_behavior_timer: float;  (* Time left for the ghost behavior in seconds *)
 }
 
 let create_ghost x y direction color texture = {
@@ -84,6 +89,9 @@ let initial_game_state () = {
     create_ghost (18 * tile_size) (12 * tile_size) (-1, 0) Color.blue (load_texture "ghost_blue.png");
     create_ghost (18 * tile_size) (18 * tile_size) (0, -1) Color.green (load_texture "ghost_pink.png");
   |];
+  boost_active = false;
+  boost_time_left = 0.0;
+  ghost_behavior_timer = 0.0;
 }
 
 let draw_map map =
@@ -103,6 +111,9 @@ let draw_sweets map =
     Array.iteri (fun x tile ->
       if tile = 2 then
         draw_circle (x * tile_size + tile_size / 2) (y * tile_size + tile_size / 2) (float_of_int (tile_size / 8)) Color.white
+      else if tile = 3 then
+        draw_circle (x * tile_size + tile_size / 2) (y * tile_size + tile_size / 2) (float_of_int (tile_size / 4)) Color.yellow
+      else ()
     ) row
   ) map
 
@@ -114,46 +125,50 @@ let wrap_around x max_value =
   else if x >= max_value then 0
   else x
 
-  let move_pacman state =
-    let grid_x = state.pacman_x / tile_size in
-    let grid_y = state.pacman_y / tile_size in
-    let next_direction = if state.pacman_x mod tile_size = 0 && state.pacman_y mod tile_size = 0 then
-        let next_x = grid_x + fst state.next_direction in
-        let next_y = grid_y + snd state.next_direction in
-        if is_valid_position next_x next_y && map.(next_y).(next_x) <> 1 then state.next_direction else state.direction
-      else
-        state.direction
-    in
-    let target_cell = if state.pacman_x mod tile_size = 0 && state.pacman_y mod tile_size = 0 then
-        let tx, ty = (grid_x + fst next_direction, grid_y + snd next_direction) in
-        if is_valid_position tx ty && map.(ty).(tx) = 1 then (grid_x, grid_y) else (tx, ty)
-      else
-        state.target_cell
-    in
-    let target_x = fst target_cell * tile_size in
-    let target_y = snd target_cell * tile_size in
-    let pacman_x = if state.pacman_x < target_x then min (state.pacman_x + 2) target_x
-      else if state.pacman_x > target_x then max (state.pacman_x - 2) target_x
-      else state.pacman_x
-    in
-    let pacman_y = if state.pacman_y < target_y then min (state.pacman_y + 2) target_y
-      else if state.pacman_y > target_y then max (state.pacman_y - 2) target_y
-      else state.pacman_y
-    in
-    let pacman_x = wrap_around pacman_x (Array.length map.(0) * tile_size) in
-    let pacman_y = wrap_around pacman_y (Array.length map * tile_size) in
-  
-    (* Check for sweets and update map and score *)
-    let grid_x = pacman_x / tile_size in
-    let grid_y = pacman_y / tile_size in
-    let score = if map.(grid_y).(grid_x) = 2 then (
-        map.(grid_y).(grid_x) <- 0;
-        state.score + 1
-      ) else state.score
-    in
+let move_pacman state =
+  let grid_x = state.pacman_x / tile_size in
+  let grid_y = state.pacman_y / tile_size in
+  let next_direction = if state.pacman_x mod tile_size = 0 && state.pacman_y mod tile_size = 0 then
+      let next_x = grid_x + fst state.next_direction in
+      let next_y = grid_y + snd state.next_direction in
+      if is_valid_position next_x next_y && map.(next_y).(next_x) <> 1 then state.next_direction else state.direction
+    else
+      state.direction
+  in
+  let target_cell = if state.pacman_x mod tile_size = 0 && state.pacman_y mod tile_size = 0 then
+      let tx, ty = (grid_x + fst next_direction, grid_y + snd next_direction) in
+      if is_valid_position tx ty && map.(ty).(tx) = 1 then (grid_x, grid_y) else (tx, ty)
+    else
+      state.target_cell
+  in
+  let target_x = fst target_cell * tile_size in
+  let target_y = snd target_cell * tile_size in
+  let pacman_x = if state.pacman_x < target_x then min (state.pacman_x + 2) target_x
+    else if state.pacman_x > target_x then max (state.pacman_x - 2) target_x
+    else state.pacman_x
+  in
+  let pacman_y = if state.pacman_y < target_y then min (state.pacman_y + 2) target_y
+    else if state.pacman_y > target_y then max (state.pacman_y - 2) target_y
+    else state.pacman_y
+  in
+  let pacman_x = wrap_around pacman_x (Array.length map.(0) * tile_size) in
+  let pacman_y = wrap_around pacman_y (Array.length map * tile_size) in
 
-    { state with pacman_x; pacman_y; direction = next_direction; target_cell; score }
-  
+  (* Check for sweets and update map and score *)
+  let grid_x = pacman_x / tile_size in
+  let grid_y = pacman_y / tile_size in
+  let score = if map.(grid_y).(grid_x) = 2 then (
+      map.(grid_y).(grid_x) <- 0;
+      state.score + 1
+    ) else state.score
+  in
+  let boost_active, boost_time_left = if map.(grid_y).(grid_x) = 3 then (
+      map.(grid_y).(grid_x) <- 0;
+      (true, time)
+    ) else (state.boost_active, state.boost_time_left) in
+
+  { state with pacman_x; pacman_y; direction = next_direction; target_cell; score; boost_active; boost_time_left }
+
 let move_ghost ghost =
   let grid_x = ghost.x / tile_size in
   let grid_y = ghost.y / tile_size in
@@ -178,6 +193,7 @@ let move_ghost ghost =
   { ghost with x; y; direction }
 
 let run_away_from_pacman ghost pacman =
+  let speed = 2 in
   let grid_x = ghost.x / tile_size in
   let grid_y = ghost.y / tile_size in
   let pacman_x = pacman.x / tile_size in
@@ -298,19 +314,47 @@ let check_collisions pacman_x pacman_y ghosts =
     distance_x < tile_size / 2 && distance_y < tile_size / 2
   ) ghosts
 
-let draw_ghosts ghosts =
+(* Change texture to ghost_afraid when boost is active *)
+let draw_ghosts ghosts boost_active =
   Array.iter (fun ghost ->
-    draw_texture ghost.texture ghost.x ghost.y Color.white
+    let texture = if boost_active then load_texture "ghost_afraid.png" else ghost.texture in 
+    draw_texture texture ghost.x ghost.y Color.white;
   ) ghosts
 
 let update_game_state state =
   let state = move_pacman state in
-  (* let ghosts = Array.map move_ghost state.ghosts in *)
-  let ghosts = Array.map (fun ghost -> chase_pacman ghost { x = state.pacman_x; y = state.pacman_y; direction = state.direction; color = Color.white; texture = state.ghosts.(0).texture }) state.ghosts in
-  (* let ghosts = Array.map (fun ghost -> run_away_from_pacman ghost { x = state.pacman_x; y = state.pacman_y; direction = state.direction; color = Color.white; texture = state.ghosts.(0).texture }) state.ghosts in *)
-  let game_end = check_collisions state.pacman_x state.pacman_y ghosts in
-  { state with ghosts; game_end }
+  let boost_active, boost_time_left =
+    if state.boost_active then 
+      let new_time_left = state.boost_time_left -. get_frame_time () in
+      if new_time_left <= 0.0 then (false, 0.0) else (true, new_time_left)
+    else (state.boost_active, state.boost_time_left)
+  in
 
+  (* Update ghost behavior timer only if boost is not active *)
+  let ghost_behavior_timer =
+    if not boost_active then
+      let new_timer = state.ghost_behavior_timer +. get_frame_time () in
+      if new_timer >= 14.0 then 0.0 else new_timer  (* Reset timer after 7 seconds *)
+    else
+      state.ghost_behavior_timer  (* Pause the timer during boost *)
+  in
+
+  (* Determine ghost behavior based on the timer *)
+  let ghosts =
+    if boost_active then
+      (* Ghosts run away during boost *)
+      Array.map (fun ghost -> run_away_from_pacman ghost { x = state.pacman_x; y = state.pacman_y; direction = state.direction; color = Color.white; texture = ghost.texture }) state.ghosts
+    else if state.ghost_behavior_timer < 7.0 then
+      (* Ghosts move randomly for the first 7 seconds *)
+      Array.map move_ghost state.ghosts
+    else
+      (* Ghosts chase Pac-Man for the next 7 seconds *)
+      Array.map (fun ghost -> chase_pacman ghost { x = state.pacman_x; y = state.pacman_y; direction = state.direction; color = Color.white; texture = ghost.texture }) state.ghosts
+  in
+
+  let game_end = check_collisions state.pacman_x state.pacman_y ghosts in
+  { state with ghosts; game_end; boost_active; boost_time_left; ghost_behavior_timer }
+  
 let () =
   Random.self_init ();
   init_window screen_width screen_height "Pac-Man";
@@ -340,10 +384,16 @@ let () =
       let scale_x = float_of_int screen_width /. float_of_int (Texture.width background_texture) in
       draw_texture_ex background_texture (Vector2.create 0.0 0.0) 0.0 scale_x Color.white;
       draw_sweets map;
-      draw_ghosts state.ghosts;
+      draw_ghosts state.ghosts state.boost_active;
       draw_texture pacman_textures.(current_frame) state.pacman_x state.pacman_y Color.white;
       draw_text (Printf.sprintf "Score: %d" state.score) 10 10 20 Color.yellow;
       draw_text "Pac-Man" (screen_width / 2 - 85) 3 40 Color.yellow;  (* Example of large text *)
+      (* draw_text (Printf.sprintf "Ghost behavior timer: %.2f" state.ghost_behavior_timer) 10 40 20 Color.yellow; *)
+
+      if state.game_end then(
+        draw_text "Game Over" (screen_width / 2 - 100) (screen_height / 2 - 20) 40 Color.yellow;
+        close_window ());
+  
 
       end_drawing ();
 
