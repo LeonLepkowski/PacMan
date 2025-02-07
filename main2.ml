@@ -157,16 +157,18 @@ let move_pacman state =
   (* Check for sweets and update map and score *)
   let grid_x = pacman_x / tile_size in
   let grid_y = pacman_y / tile_size in
-  let score = if map.(grid_y).(grid_x) = 2 then (
-      map.(grid_y).(grid_x) <- 0;
-      state.score + 1
-    ) else state.score
-  in
-  let boost_active, boost_time_left = if map.(grid_y).(grid_x) = 3 then (
-      map.(grid_y).(grid_x) <- 0;
-      (true, time)
-    ) else (state.boost_active, state.boost_time_left) in
 
+  let score, boost_active, boost_time_left = 
+    if pacman_x mod tile_size = 0 && pacman_y mod tile_size = 0 then
+      if map.(grid_y).(grid_x) = 2 then (
+        map.(grid_y).(grid_x) <- 0;
+        (state.score + 1, state.boost_active, state.boost_time_left)
+      ) else if map.(grid_y).(grid_x) = 3 then (
+        map.(grid_y).(grid_x) <- 0;
+        (state.score, true, time)
+      ) else (state.score, state.boost_active, state.boost_time_left)
+    else (state.score, state.boost_active, state.boost_time_left)
+  in
   { state with pacman_x; pacman_y; direction = next_direction; target_cell; score; boost_active; boost_time_left }
 
 let move_ghost ghost =
@@ -308,17 +310,19 @@ let chase_pacman ghost pacman =
     { ghost with x = final_x; y = final_y }
 
 let check_collisions pacman_x pacman_y ghosts =
-  Array.exists (fun ghost ->
-    let distance_x = abs (pacman_x - ghost.x) in
-    let distance_y = abs (pacman_y - ghost.y) in
-    distance_x < tile_size / 2 && distance_y < tile_size / 2
-  ) ghosts
-
+  Array.fold_left (fun acc (ghost, index) ->
+    if acc = -1 then (
+      let distance_x = abs (pacman_x - ghost.x) in
+      let distance_y = abs (pacman_y - ghost.y) in
+      if distance_x < tile_size / 2 && distance_y < tile_size / 2 then index else -1
+    ) else acc
+  ) (-1) (Array.mapi (fun index ghost -> (ghost, index)) ghosts)
+  
 (* Change texture to ghost_afraid when boost is active *)
 let draw_ghosts ghosts boost_active =
   Array.iter (fun ghost ->
     let texture = if boost_active then load_texture "ghost_afraid.png" else ghost.texture in 
-    draw_texture texture ghost.x ghost.y Color.white;
+    draw_texture_v texture (Vector2.create (float_of_int ghost.x) (float_of_int ghost.y)) Color.white;
   ) ghosts
 
 let update_game_state state =
@@ -352,9 +356,31 @@ let update_game_state state =
       Array.map (fun ghost -> chase_pacman ghost { x = state.pacman_x; y = state.pacman_y; direction = state.direction; color = Color.white; texture = ghost.texture }) state.ghosts
   in
 
-  let game_end = check_collisions state.pacman_x state.pacman_y ghosts in
+  let collision_index = check_collisions state.pacman_x state.pacman_y ghosts in
+  let game_end, ghosts =
+    if collision_index >= 0 then
+      if boost_active then
+        (* Reset the colliding ghost's position to the middle *)
+        let new_ghosts = Array.mapi (fun i ghost ->
+          if i = collision_index then { ghost with x = 14 * tile_size; y = 14 * tile_size; direction = (1, 0) } else ghost
+        ) ghosts in
+        (false, new_ghosts)
+      else
+        (true, ghosts)
+    else
+      (state.game_end, ghosts)
+  in
+
   { state with ghosts; game_end; boost_active; boost_time_left; ghost_behavior_timer }
   
+let get_rotation_angle direction =
+  match direction with
+  | (1, 0) -> 0.0
+  | (-1, 0) -> 180.0
+  | (0, 1) -> 90.0
+  | (0, -1) -> 270.0
+  | _ -> 0.0
+
 let () =
   Random.self_init ();
   init_window screen_width screen_height "Pac-Man";
@@ -370,38 +396,59 @@ let () =
 
   let rec game_loop state current_frame last_update_time =
     if not (window_should_close ()) then
-      let state = if is_key_pressed Key.Right then { state with next_direction = (1, 0) }
-        else if is_key_pressed Key.Left then { state with next_direction = (-1, 0) }
-        else if is_key_pressed Key.Up then { state with next_direction = (0, -1) }
-        else if is_key_pressed Key.Down then { state with next_direction = (0, 1) }
-        else state
+      let state = if not state.game_end then
+          let state = if is_key_pressed Key.Right then { state with next_direction = (1, 0) }
+            else if is_key_pressed Key.Left then { state with next_direction = (-1, 0) }
+            else if is_key_pressed Key.Up then { state with next_direction = (0, -1) }
+            else if is_key_pressed Key.Down then { state with next_direction = (0, 1) }
+            else state
+          in
+          update_game_state state
+        else
+          state
       in
-      let state = update_game_state state in
-
+  
       begin_drawing ();
       clear_background Color.black;
-
+  
       let scale_x = float_of_int screen_width /. float_of_int (Texture.width background_texture) in
       draw_texture_ex background_texture (Vector2.create 0.0 0.0) 0.0 scale_x Color.white;
       draw_sweets map;
       draw_ghosts state.ghosts state.boost_active;
-      draw_texture pacman_textures.(current_frame) state.pacman_x state.pacman_y Color.white;
+      (* draw pacman depending on rotation *)
+      let pacman_width = Texture.width pacman_textures.(0) in
+      let pacman_height = Texture.height pacman_textures.(0) in
+      
+      let position = 
+        match state.direction with
+        | (1, 0) -> Vector2.create (float_of_int state.pacman_x) (float_of_int state.pacman_y)
+        | (-1, 0) -> Vector2.create (float_of_int (state.pacman_x + pacman_width)) (float_of_int (state.pacman_y + pacman_height))
+        | (0, -1) -> Vector2.create (float_of_int state.pacman_x) (float_of_int (state.pacman_y + pacman_height))
+        | (0, 1) -> Vector2.create (float_of_int (state.pacman_x + tile_size)) (float_of_int state.pacman_y)
+        | _ -> 
+          Vector2.create 
+          (float_of_int state.pacman_x)  (* Positioning Pacman at pacman_x *)
+          (float_of_int state.pacman_y)  (* Positioning Pacman at pacman_y *)
+        in
+      let angle = get_rotation_angle state.direction in
+      draw_texture_ex pacman_textures.(current_frame) position angle 1.0 Color.white;
+      (* draw_texture pacman_textures.(current_frame) state.pacman_x state.pacman_y Color.white; *)
       draw_text (Printf.sprintf "Score: %d" state.score) 10 10 20 Color.yellow;
       draw_text "Pac-Man" (screen_width / 2 - 85) 3 40 Color.yellow;  (* Example of large text *)
-      (* draw_text (Printf.sprintf "Ghost behavior timer: %.2f" state.ghost_behavior_timer) 10 40 20 Color.yellow; *)
-
-      if state.game_end then(
-        draw_text "Game Over" (screen_width / 2 - 100) (screen_height / 2 - 20) 40 Color.yellow;
-        close_window ());
   
+      if state.game_end then
+        draw_text "Game Over" (screen_width / 2 - 100) (screen_height / 2 - 20) 40 Color.red;
+  
+      if state.score = 292 then
+        draw_text "You Win!" (screen_width / 2 - 100) (screen_height / 2 - 20) 40 Color.green;
 
       end_drawing ();
-
+  
       let current_time = get_time () in
       let frame_time = current_time -. last_update_time in
       let current_frame = if frame_time >= 0.1 then (current_frame + 1) mod 4 else current_frame in
       let last_update_time = if frame_time >= 0.1 then current_time else last_update_time in
-
+  
       game_loop state current_frame last_update_time
   in
 
