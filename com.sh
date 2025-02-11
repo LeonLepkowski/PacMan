@@ -1,2 +1,2 @@
-ocamlfind ocamlopt -package raylib -linkpkg pacman.ml -o pacman
+ocamlfind ocamlopt -package raylib -linkpkg main.ml -o pacman
 ./pacman
