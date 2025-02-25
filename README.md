@@ -1,3 +1,5 @@
+![pacman](https://github.com/user-attachments/assets/bbe1afb1-4967-4215-960f-3194264915b7)
+
 # Pac-Man Game Documentation
 
 This document provides an overview of the Pac-Man game implementation written in OCaml using the Raylib library. The code is structured to handle game logic, rendering, and user input for a simplified version of the classic Pac-Man game.
